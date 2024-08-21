@@ -1,30 +1,32 @@
-﻿#include <iostream>
+#include <iostream>
 #include <windows.h>
 #include <numbers>
 #include <print>
 #include <thread>
-#include "mem.h"
-#include "offset.h"
-#include "Vector.h"
+
 #include <d2d1.h>
 #include <d2d1_1.h>
 #include <wil/com.h>
 
+#include "mem.hpp"
+#include "offset.h"
+#include "Math.hpp"
+
 #pragma comment(lib, "d2d1.lib")
 
 struct EntityStruct {
-    char pad_0000[4]; //0x0000
+    std::array<std::uint8_t, 4> pad_0000{};
     Vector3 HeadPos; //0x0004
-    char pad_0010[24]; //0x0010
+    std::array<std::uint8_t, 24> pad_0001{};
     Vector3 FootPos; //0x0028
     Vector2 ViewAngle; //0x0034
-    char pad_003C[176]; //0x003C
+    std::array<std::uint8_t, 176> pad_0002{};
     int32_t Health; //0x00EC
-    char pad_00F0[277]; //0x00F0
+    std::array<std::uint8_t, 277> pad_0003{};
     char Name[16]; //0x0205
-    char pad_0215[247]; //0x0215
+    std::array<std::uint8_t, 247> pad_0004{};
     int8_t Team; //0x030C
-    char pad_030D[360]; //0x030D
+    std::array<std::uint8_t, 360> pad_0005{};
 };
 
 LRESULT CALLBACK windowProc(HWND hwnd, UINT uMsg, WPARAM wParam, LPARAM lParam)
@@ -58,13 +60,16 @@ LRESULT CALLBACK windowProc(HWND hwnd, UINT uMsg, WPARAM wParam, LPARAM lParam)
 
 int main() {
     std::println("Hello World!");
-    if (!GetProcessHandle("ac_client.exe")) {
-        std::println("Failed to open handle!");
+
+    Memory mem("ac_client.exe");
+    if (!mem.IsValid()) {
+        std::println("Failed to get handle!");
         return 0;
     }
+
     std::println("Opened Handle!");
 
-    uintptr_t baseAddress = GetModuleBaseAddress("ac_client.exe");
+    uintptr_t baseAddress = mem.GetModuleBaseAddress("ac_client.exe");
 
     //Registrace třídy
     WNDCLASS windowClass{0};
@@ -120,6 +125,9 @@ int main() {
 
     bool runLoop = true;
 
+    auto LocalPlayerAddress{ mem.RPM<uintptr_t>(baseAddress + offset::LocalPlayer) };
+    auto EntityListAddress{ mem.RPM<uintptr_t>(baseAddress + offset::EntityList) };
+
     while (runLoop) {
         while (PeekMessage(&msg, nullptr, 0, 0, PM_REMOVE))
         {
@@ -137,12 +145,8 @@ int main() {
 
         std::this_thread::sleep_for(std::chrono::milliseconds(5));
 
-        long LocalPlayerAddress = RPM<long>(baseAddress + offset::LocalPlayer);
-        long EntityListAddress = RPM<long>(baseAddress + offset::EntityList);
-
-        EntityStruct LocalPlayer = RPM<EntityStruct>(LocalPlayerAddress);
-
-        int playerCount = RPM<int>(baseAddress + offset::PlayerCount);
+        auto LocalPlayer{ mem.RPM<EntityStruct>(LocalPlayerAddress) };
+        auto playerCount{ mem.RPM<int>(baseAddress + offset::PlayerCount) };
 
         EntityStruct ClosestEntity {};
         double closestDist = DBL_MAX;
@@ -153,15 +157,16 @@ int main() {
         pRenderTarget->Clear(D2D1::ColorF(D2D1::ColorF::Black));
 
         for (int i = 0; i <= playerCount; i++) {
-            long EntityAddress = RPM<long>(EntityListAddress + (i * 0x4));
-            EntityStruct Entity = RPM<EntityStruct>(EntityAddress);
+            auto EntityAddress{ mem.RPM<uintptr_t>(EntityListAddress + (i * 0x4)) };
+            auto Entity{ mem.RPM<EntityStruct>(EntityAddress) };
 
             if (LocalPlayer.Team == Entity.Team || Entity.Health <= 0)
                 continue;
 
             Vector2 ScreenHead;
             Vector2 ScreenFoot;
-            if (WorldToScreen({ Entity.HeadPos }, ScreenHead) && WorldToScreen({ Entity.FootPos }, ScreenFoot)) {
+            glMatrix matrix = mem.RPM<glMatrix>((long)mem.GetModuleBaseAddress("ac_client.exe") + offset::viewMatrix);
+            if (WorldToScreen({ Entity.HeadPos }, ScreenHead, matrix) && WorldToScreen({ Entity.FootPos }, ScreenFoot, matrix)) {
                 entitiesOnScreen = true;
 
                 float height = ScreenFoot.y - ScreenHead.y;
@@ -190,12 +195,12 @@ int main() {
         float hyp = sqrt(delta.x * delta.x + delta.y * delta.y);
         float pitch = atan2f(delta.z, hyp) * 180 / std::numbers::pi;
 
+        //mel bych zapsat cely struct
         if (GetAsyncKeyState(VK_LCONTROL) & 0x8000) {
-            WPM<Vector2>(LocalPlayerAddress + offset::viewAngleX, { yaw + 90, pitch });
+            mem.WPM<Vector2>(LocalPlayerAddress + offsetof(EntityStruct, ViewAngle), { yaw + 90, pitch });
         }
     }
     //cisteni po konci
     UnregisterClass(windowClass.lpszClassName, windowClass.hInstance);
-    end();
     return 0;
 }
