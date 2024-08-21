@@ -40,13 +40,11 @@ struct glMatrix
     std::array<float, 16> matrix;
 };
 
-bool WorldToScreen(Vector3 pos, Vector2& screenPos)
+bool WorldToScreen(Vector3 pos, Vector2& screenPos,glMatrix matrix)
 {
     GetClientRect(hwndAC, &rctAC);
     int windowWidth = rctAC.right;
     int windowHeight = rctAC.bottom;
-
-    glMatrix matrix = RPM<glMatrix>((long)GetModuleBaseAddress("ac_client.exe") + offset::viewMatrix);
 
     //Matrix-vector Product, multiplying world(eye) coordinates by projection matrix = clipCoords
     Vector4 clipCoords;
@@ -69,6 +67,7 @@ bool WorldToScreen(Vector3 pos, Vector2& screenPos)
     screenPos.y = -(windowHeight / 2 * NDC.y) + (NDC.y + windowHeight / 2);
     return true;
 }
+
 
 double GetDistance(Vector2 enemy) {
     GetClientRect(hwndAC, &rctAC);
