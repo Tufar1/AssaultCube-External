@@ -2,7 +2,7 @@ Simple AssaultCube External hack. Using RPM/WPM to manipulate process memory
 
 Aimbot aims on closest enemy to cursor on CTRL hold
 
-ESP is made by creating window using RegisterClass and CreateWindowEx, Drawing by Direct2D
+ESP is made by creating window using RegisterClass and CreateWindowEx, Drawing by Direct2D - Examples of window creation in my another repository
 
 Theres wil::com_ptrs, to run these, you need to install WIL: https://github.com/microsoft/wil
 
